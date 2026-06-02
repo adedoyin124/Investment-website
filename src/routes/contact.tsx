@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteShell } from "@/components/site-shell";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Mail, MessageSquare, MapPin } from "lucide-react";
 
@@ -14,8 +16,30 @@ export const Route = createFileRoute("/contact")({
   component: Contact,
 });
 
+type FeaturedProperty = {
+  id: string;
+  title: string;
+  location: string;
+  price: number;
+  funded_percent: number;
+  image_url: string | null;
+};
+
 function Contact() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
+
+  const { data: properties, isLoading, error } = useQuery<FeaturedProperty[]>({
+    queryKey: ["contact", "featured-properties"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id, title, location, price, funded_percent, image_url")
+        .order("created_at", { ascending: false })
+        .limit(3);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   return (
     <SiteShell>
@@ -56,6 +80,35 @@ function Contact() {
             Send message
           </button>
         </form>
+      </section>
+
+      <section className="mx-auto max-w-7xl space-y-6 px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-display text-xs font-semibold uppercase tracking-[0.25em] text-primary">Featured properties</p>
+            <h2 className="mt-2 font-display text-3xl font-bold tracking-tight">Latest investment opportunities</h2>
+          </div>
+          {isLoading && <p className="text-sm text-muted-foreground">Loading latest deals…</p>}
+        </div>
+
+        {error ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+            Could not load featured properties. Try again later.
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(properties ?? []).map((property) => (
+              <article key={property.id} className="rounded-3xl border border-border bg-card p-5 shadow-card">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-display text-lg font-semibold">{property.title}</h3>
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">{property.funded_percent}% funded</span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">{property.location}</p>
+                <p className="mt-4 text-base font-semibold">${property.price.toLocaleString()}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </SiteShell>
   );
